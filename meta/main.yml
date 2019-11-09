@@ -1,0 +1,20 @@
+dependencies: []
+
+galaxy_info:
+  short_description: Provides a lookup plugin for acm
+  description: Provides access to acm variables through a lookup plugin (for backward compatibility only)
+  company: shterm
+  license: Apache
+  author:
+    - Dingym 
+
+  min_ansible_version: '2.3'
+
+  platforms:
+    - name: Centos
+
+  galaxy_tags:
+    - machine-identity
+    - shterm
+    - acm
+    - security
