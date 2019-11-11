@@ -9,7 +9,7 @@ shterm_reset_acm lookup plugin to retrieve really account and password from shte
 
 ## Installation
 
-Install the Conjur role using the following syntax:
+Install the shterm_reset_acm role using the following syntax:
 
 ```
 $ ansible-galaxy install shterm.shterm_reset_acm
