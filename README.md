@@ -24,7 +24,7 @@ $ ansible-galaxy install shterm.shterm_reset_acm
   roles:
     - role: zjdym.reset_acm         
   vars:
-     contents: "{{lookup('reset_acm_variable','centos','username=root;resourceName=host;reason=test;','')}}"
+     contents: "{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
      ansible_ssh_pass: "{{contents.password}}"
      ansible_ssh_user: "{{contents.name}}"
   tasks:
@@ -36,12 +36,12 @@ $ ansible-galaxy install shterm.shterm_reset_acm
 [demo]
 server1 ansible_ssh_host=10.10.20.29 ansible_ssh_pass="{{content.password}}" 
 [demo:vars]
-content="{{lookup('reset_acm_variable','centos','username=root;resourceName=host;reason=test;','')}}"
+content="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
 ```
 - command demo
 
 ```
-ansible ipaddr -i ipaddr, --playbook-dir ~/.ansible/roles/shterm.shterm_reset_acm/ -u root -e ansible_password="{{lookup('reset_acm_variable','centos','username=root;resourceName=host;reason=test;','')}}"  -a 'echo dial' 
+ansible 10.10.20.29 -i 10.10.20.29, --playbook-dir ~/.ansible/roles/shterm.shterm_reset_acm/ -u root -e ansible_password="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''}).password}}"  -a 'echo dial'
 ```
 
 ## Plugin Arguments
