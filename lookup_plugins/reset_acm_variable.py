@@ -1,15 +1,15 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 from ansible.plugins.lookup import LookupBase
-from .sdk import pwdlib
+from .pwdlib import PasswordExecutor
 class LookupModule(LookupBase):
     def retrieve_secrets(self, terms):
         secrets = []
-        if terms is None or len(terms) < 3:
+        if terms is None or len(terms) < 1:
             raise Exception('params is not match required')
-        appid = terms[0]
-        query = terms[1]
-        rtninfo = terms[2]
+        appid = terms.get('pid', None)
+        query = terms.get('query', None)
+        rtninfo = terms.get('extra', None)
         #rtn_fields = self.analyize_query_params(rtninfo)
         # ueryPassword(objectName, resourceName, appId, requestReason, credentialFile, port):
         query_params = self.analyize_query_params(query)
@@ -17,7 +17,7 @@ class LookupModule(LookupBase):
         resouce_name = query_params.get("resourceName", None)
         request_reason = query_params.get("reason", None)
         connect_port = query_params.get("connectPort", 0)
-        account_info = pwdlib.PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, None, connect_port)
+        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, None, connect_port)
         really_account = account_info['objectName']
         really_password = account_info['objectContent']
         secret = {'password':really_password, 'account':really_account}

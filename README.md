@@ -1,18 +1,63 @@
-## Shterm lookup plugin
-This Shterm plugin provides the ability to look up shterm-appmgr values in playbooks
+## shterm_reset_acm
 
+shterm_reset_acm lookup plugin to retrieve really account and password from shterm appmgr 
 
-## Required 
-using this plugin, 
+## Requirements
+
+1. shterm-agent
+2. shterm-appmgr
 
 ## Installation
-Install the reset_acm role using the following syntax:
 
-## Recommendations
+Install the Conjur role using the following syntax:
 
-* Add `no_log: true` to each play that uses sensitive data, otherwise that data can be printed to the logs.
-* Set the Ansible files to minimum permissions. The Ansible uses the permissions of the user that runs it.
+```
+$ ansible-galaxy install shterm.shterm_reset_acm
+```
+
+## Plugin Usage
+
+- playbook demo
+
+``` yml
+- hosts: server1
+  roles:
+    - role: zjdym.reset_acm         
+  vars:
+     contents: "{{lookup('reset_acm_variable','centos','username=root;resourceName=host;reason=test;','')}}"
+     ansible_ssh_pass: "{{contents.password}}"
+     ansible_ssh_user: "{{contents.name}}"
+  tasks:
+    - debug: msg="the value of foo.txt is {{contents.name}}"
+```
+- host file demo
+
+```
+[demo]
+server1 ansible_ssh_host=10.10.20.29 ansible_ssh_pass="{{content.password}}" 
+[demo:vars]
+content="{{lookup('reset_acm_variable','centos','username=root;resourceName=host;reason=test;','')}}"
+```
+- command demo
+
+```
+ansible ipaddr -i ipaddr, --playbook-dir ~/.ansible/roles/shterm.shterm_reset_acm/ -u root -e ansible_password="{{lookup('reset_acm_variable','centos','username=root;resourceName=host;reason=test;','')}}"  -a 'echo dial' 
+```
+
+## Plugin Arguments
+
+- **`appid`** (str): Defines the unique ID of the application that is issuing the password request.
+- **`query`** (str): Describes the filter criteria for the password retrieval.
+- **`extra`** (str):  ExtendField 
+
+## Plugin Return
+
+- > **`dict`**: A dictionary with '`password`' and '`name`'
 
 ## License
 
-Apache 2
+MIT
+
+## Author Information
+
+- Ding Allen(zjdyms.hz@shterm.com)
