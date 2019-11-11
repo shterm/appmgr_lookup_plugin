@@ -1,6 +1,6 @@
-## shterm_reset_acm
+## appmgr_lookup_plugin
 
-shterm_reset_acm lookup plugin to retrieve really account and password from shterm appmgr 
+appmgr_lookup_plugin to retrieve really account and password from shterm-appmgr 
 
 ## Requirements
 
@@ -9,10 +9,10 @@ shterm_reset_acm lookup plugin to retrieve really account and password from shte
 
 ## Installation
 
-Install the shterm_reset_acm role using the following syntax:
+Install the appmgr_lookup_plugin role using the following syntax:
 
 ```
-$ ansible-galaxy install shterm.shterm_reset_acm
+$ ansible-galaxy install shterm.appmgr_lookup_plugin
 ```
 
 ## Plugin Usage
@@ -22,7 +22,7 @@ $ ansible-galaxy install shterm.shterm_reset_acm
 ``` yml
 - hosts: server1
   roles:
-    - role: shterm.shterm_reset_acm         
+    - role: shterm.appmgr_lookup_plugin         
   vars:
      contents: "{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
      ansible_ssh_pass: "{{contents.password}}"
@@ -41,7 +41,7 @@ content="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root
 - command demo
 
 ```
-ansible 10.10.20.29 -i 10.10.20.29, --playbook-dir ~/.ansible/roles/shterm.shterm_reset_acm/ -u root -e ansible_password="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''}).password}}"  -a 'echo dial'
+ansible 10.10.20.29 -i 10.10.20.29, --playbook-dir ~/.ansible/roles/shterm.appmgr_lookup_plugin/ -u root -e ansible_password="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''}).password}}"  -a 'echo dial'
 ```
 
 ## Plugin Arguments

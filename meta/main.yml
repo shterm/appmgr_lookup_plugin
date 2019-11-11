@@ -1,8 +1,8 @@
 dependencies: []
 
 galaxy_info:
-  short_description: Provides a lookup plugin for acm
-  description: Provides access to acm variables through a lookup plugin (for backward compatibility only)
+  short_description: Provides a lookup plugin for pam 
+  description: Provides access to pam  variables through a lookup plugin (for backward compatibility only)
   company: shterm
   license: Apache
   author:
@@ -14,7 +14,7 @@ galaxy_info:
     - name: Centos
 
   galaxy_tags:
-    - machine-identity
+    - appmgr 
     - shterm
     - acm
-    - security
+    - pam
