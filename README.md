@@ -24,7 +24,7 @@ $ ansible-galaxy install shterm.appmgr_lookup_plugin
   roles:
     - role: shterm.appmgr_lookup_plugin         
   vars:
-     contents: "{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
+     contents: "{{lookup('appmgr_lookup_plugin',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
      ansible_ssh_pass: "{{contents.password}}"
      ansible_ssh_user: "{{contents.name}}"
   tasks:
@@ -36,12 +36,12 @@ $ ansible-galaxy install shterm.appmgr_lookup_plugin
 [demo]
 server1 ansible_ssh_host=10.10.20.29 ansible_ssh_pass="{{content.password}}" 
 [demo:vars]
-content="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
+content="{{lookup('appmgr_lookup_plugin',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''})}}"
 ```
 - command demo
 
 ```
-ansible 10.10.20.29 -i 10.10.20.29, --playbook-dir ~/.ansible/roles/shterm.appmgr_lookup_plugin/ -u root -e ansible_password="{{lookup('reset_acm_variable',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''}).password}}"  -a 'echo dial'
+ansible 10.10.20.29 -i 10.10.20.29, --playbook-dir ~/.ansible/roles/shterm.appmgr_lookup_plugin/ -u root -e ansible_password="{{lookup('appmgr_lookup_plugin',{'appid':'centos', 'query':'username=root;resourceName=host;reason=test;', 'extra':''}).password}}"  -a 'echo dial'
 ```
 
 ## Plugin Arguments
