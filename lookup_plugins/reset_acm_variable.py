@@ -7,7 +7,7 @@ class LookupModule(LookupBase):
         if terms is None or len(terms) < 1:
             raise Exception('params is not match required')
         context = terms[0]
-        appid = context.get('pid', None)
+        appid = context.get('appid', None)
         query = context.get('query', None)
         rtninfo = context.get('extra', None)
         #rtn_fields = self.analyize_query_params(rtninfo)
