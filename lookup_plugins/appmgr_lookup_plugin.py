@@ -17,7 +17,10 @@ class LookupModule(LookupBase):
         resouce_name = query_params.get("resourceName", None)
         request_reason = query_params.get("reason", None)
         connect_port = query_params.get("connectPort", 0)
-        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, None, connect_port)
+        credentialFile = None
+        if rtninfo:
+            credentialFile = rtninfo.get('creFile', None)
+        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, credentialFile, connect_port)
         really_account = account_info['objectName']
         really_password = account_info['objectContent']
         secret = {'password':really_password, 'account':really_account}
