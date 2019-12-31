@@ -16,12 +16,11 @@ class LookupModule(LookupBase):
         account_name = query_params.get("username", None)
         resouce_name = query_params.get("resourceName", None)
         request_reason = query_params.get("reason", None)
-        request_query = query_params.get("query", None)
         connect_port = query_params.get("connectPort", 0)
         credentialFile = None
         if rtninfo:
             credentialFile = rtninfo.get('creFile', None)
-        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, credentialFile, request_query, connect_port)
+        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, query, credentialFile, connect_port)
         really_account = account_info['objectName']
         really_password = account_info['objectContent']
         secret = {'password':really_password, 'account':really_account}
@@ -69,7 +68,7 @@ from threading import Lock
 # host ip
 HOST = "127.0.0.1"
 # sdk current version
-SDK_CURRENT_VERSION = "v1"
+SDK_CURRENT_VERSION = "v2"
 # port
 DEFAULT_CONNECT_PORT = 29463
 # password request
@@ -93,7 +92,6 @@ CONNECT_HOST = "connectHost"
 # connectPort key
 CONNECT_PORT = "connectPort"
 
-# system type
 systemType = platform.system()
 
 
@@ -128,6 +126,14 @@ class PwdlibException(Exception):
         self.code = code
         self.args = args
 
+def fillIdAppE(errMsg, errCode):
+    """
+    Get error message
+    :param errMsg:
+    :param errCode:
+    :return: error message
+    """
+    return "{}{:0>4d} {}".format("EACCAPP", errCode, errMsg)
 
 # message manager class
 class ServerMessageManager:
@@ -136,10 +142,6 @@ class ServerMessageManager:
         self.__socket = None
         self.__port = DEFAULT_CONNECT_PORT
         self.__corelationId = 1
-        if 'APPMGR_IP' in os.environ:
-            self.__envIp = os.environ['APPMGR_IP']
-        else:
-            self.__envIp = ""
 
     def __del__(self):
         if self.__socket:
@@ -160,11 +162,8 @@ class ServerMessageManager:
         except socket.error:
             return False
 
-        ip = HOST
-        if isinstance(self.__envIp, str) and len(self.__envIp) > 0:
-            ip = self.__envIp
         try:
-            self.__socket.connect((ip, port))
+            self.__socket.connect((HOST, port))
         except (socket.error, socket.gaierror):
             if self.__socket:
                 self.__socket.close()
@@ -213,7 +212,8 @@ class ServerMessageManager:
         if self.__socket is None or self.__port != port:
             if not self.__initSocket(port):
                 self.__lock.release()
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT, ("Connect fail",))
+                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
+                                      (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT), ))
             else:
                 self.__port = port
 
@@ -228,10 +228,12 @@ class ServerMessageManager:
             # reconnect
             if not self.__initSocket(port):
                 self.__lock.release()
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT, ("Connect fail",))
+                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
+                                      (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT),))
             else:
                 self.__lock.release()
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT, ("Reconnect",))
+                raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
+                                      (fillIdAppE("Reconnect", PwdlibException.PWDSDK_ERROR_RECONNECT),))
 
         if haveResponse:
             try:
@@ -242,10 +244,12 @@ class ServerMessageManager:
                 # reconnect
                 if not self.__initSocket(port):
                     self.__lock.release()
-                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT, ("Connect fail",))
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
+                                          (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT),))
                 else:
                     self.__lock.release()
-                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT, ("Reconnect",))
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
+                                          (fillIdAppE("Reconnect", PwdlibException.PWDSDK_ERROR_RECONNECT),))
 
         self.__lock.release()
         return ret
@@ -261,21 +265,22 @@ class PasswordExecutor:
         pass
 
     @staticmethod
-    def queryPassword(objectName, resourceName, appId, requestReason, credentialFile, request_query, port):
+    def queryPassword(objectName, resourceName, appId, requestReason, query, credentialFile, port):
         """
         Query password
         :param objectName: Object name
         :param resourceName: The utf-8 encoded resource name
         :param appId: The application identity for the request password
         :param requestReason: Reason for the request
+        :param query: Query Conditions
         :param credentialFile: Credential file path, assign None when credential is not used
-        :param query: String parameter, Currently only supported deviceType and address
         :param port: port number, assign zero to use default port
         :return: Password object
         """
-        if not (objectName and (resourceName or request_query) and appId and requestReason and
+        if not (objectName and appId and requestReason and
                 isinstance(port, int) and 0 <= port <= 65535):
-            raise PwdlibException(PwdlibException.PWDSDK_ERROR_PARAMETER, ('Invalid Parameter',))
+            raise PwdlibException(PwdlibException.PWDSDK_ERROR_PARAMETER,
+                                  (fillIdAppE("Invalid Parameter", PwdlibException.PWDSDK_ERROR_PARAMETER),))
         if port == 0:
             port = DEFAULT_CONNECT_PORT
 
@@ -300,9 +305,9 @@ class PasswordExecutor:
         passwordRequest = {}
         passwordRequest["objectName"] = objectName
         passwordRequest["resourceName"] = resourceName
-        passwordRequest["query"] = request_query
         passwordRequest["appId"] = appId
         passwordRequest["requestReason"] = requestReason
+        passwordRequest["query"] = query
         # Get additional information
         additionalInfo = {}
         additionalInfo["osUser"] = getpass.getuser()
@@ -314,7 +319,8 @@ class PasswordExecutor:
                 additionalInfo["credential"] = cf.read()
                 json.dumps(additionalInfo["credential"])
             except:
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CREDENTIALFILE, ("Credential file error",))
+                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CREDENTIALFILE, (
+                    fillIdAppE("Credential file error", PwdlibException.PWDSDK_ERROR_CREDENTIALFILE),))
             finally:
                 if cf:
                     cf.close()
@@ -333,10 +339,14 @@ class PasswordExecutor:
             # Judging additional information
             if "extras" in account:
                 if "changingPassword" in account["extras"] and account["extras"]["changingPassword"]:
-                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CHANGINGPASSWORD, ("Changing password", ))
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CHANGINGPASSWORD, (
+                        fillIdAppE("Changing password", PwdlibException.PWDSDK_ERROR_CHANGINGPASSWORD),))
                 if "errorCode" in account["extras"] and account["extras"]["errorCode"] != 0:
+                    errorMsg = "Unknown error from server"
+                    if "errorMsg" in account["extras"]:
+                        errorMsg = account["extras"]["errorMsg"]
                     raise PwdlibException(account["extras"]["errorCode"],
-                                          ("The server returns error code %d" % account["extras"]["errorCode"], ))
+                                          (fillIdAppE(errorMsg, account["extras"]["errorCode"]),))
             else:
                 # TODO
                 pass
@@ -344,7 +354,8 @@ class PasswordExecutor:
             # String is empty
             if ("objectName" not in account or "objectContent" not in account or
                 account["objectName"].strip() == "" or account["objectContent"].strip() == ""):
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_INVALID_RETURNS, ("Invalid data returned", ))
+                raise PwdlibException(PwdlibException.PWDSDK_ERROR_INVALID_RETURNS, (
+                    fillIdAppE("Invalid data returned", PwdlibException.PWDSDK_ERROR_INVALID_RETURNS),))
             pwdObj = {}
             pwdObj["objectName"] = account["objectName"]
             pwdObj["objectContent"] = account["objectContent"]
