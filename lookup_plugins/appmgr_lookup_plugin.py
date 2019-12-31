@@ -16,11 +16,12 @@ class LookupModule(LookupBase):
         account_name = query_params.get("username", None)
         resouce_name = query_params.get("resourceName", None)
         request_reason = query_params.get("reason", None)
+        request_query = query_params.get("query", None)
         connect_port = query_params.get("connectPort", 0)
         credentialFile = None
         if rtninfo:
             credentialFile = rtninfo.get('creFile', None)
-        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, credentialFile, connect_port)
+        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, credentialFile, request_query, connect_port)
         really_account = account_info['objectName']
         really_password = account_info['objectContent']
         secret = {'password':really_password, 'account':really_account}
@@ -260,7 +261,7 @@ class PasswordExecutor:
         pass
 
     @staticmethod
-    def queryPassword(objectName, resourceName, appId, requestReason, credentialFile, port):
+    def queryPassword(objectName, resourceName, appId, requestReason, credentialFile, request_query, port):
         """
         Query password
         :param objectName: Object name
@@ -268,10 +269,11 @@ class PasswordExecutor:
         :param appId: The application identity for the request password
         :param requestReason: Reason for the request
         :param credentialFile: Credential file path, assign None when credential is not used
+        :param query: String parameter, Currently only supported deviceType and address
         :param port: port number, assign zero to use default port
         :return: Password object
         """
-        if not (objectName and resourceName and appId and requestReason and
+        if not (objectName and (resourceName or request_query) and appId and requestReason and
                 isinstance(port, int) and 0 <= port <= 65535):
             raise PwdlibException(PwdlibException.PWDSDK_ERROR_PARAMETER, ('Invalid Parameter',))
         if port == 0:
@@ -298,6 +300,7 @@ class PasswordExecutor:
         passwordRequest = {}
         passwordRequest["objectName"] = objectName
         passwordRequest["resourceName"] = resourceName
+        passwordRequest["query"] = request_query
         passwordRequest["appId"] = appId
         passwordRequest["requestReason"] = requestReason
         # Get additional information
