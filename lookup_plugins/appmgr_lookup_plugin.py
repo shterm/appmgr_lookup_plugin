@@ -16,14 +16,16 @@ class LookupModule(LookupBase):
         account_name = query_params.get("username", None)
         resouce_name = query_params.get("resourceName", None)
         request_reason = query_params.get("reason", None)
+        request_requiredAttribute = query_params.get("requiredAttribute", None)
         connect_port = query_params.get("connectPort", 0)
         credentialFile = None
         if rtninfo:
             credentialFile = rtninfo.get('creFile', None)
-        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, query, credentialFile, connect_port)
+        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, query, request_requiredAttribute, credentialFile, connect_port)
         really_account = account_info['objectName']
         really_password = account_info['objectContent']
-        secret = {'password':really_password, 'account':really_account}
+        really_extras = account_info['extras']
+        secret = {'password':really_password, 'account':really_account, 'extras':really_extras}
         secrets.append(secret)
         return secrets
 
@@ -265,7 +267,7 @@ class PasswordExecutor:
         pass
 
     @staticmethod
-    def queryPassword(objectName, resourceName, appId, requestReason, query, credentialFile, port):
+    def queryPassword(objectName, resourceName, appId, requestReason, query, requiredAttribute, credentialFile, port):
         """
         Query password
         :param objectName: Object name
@@ -273,6 +275,7 @@ class PasswordExecutor:
         :param appId: The application identity for the request password
         :param requestReason: Reason for the request
         :param query: Query Conditions
+        :param requiredAttribute: Required attribute
         :param credentialFile: Credential file path, assign None when credential is not used
         :param port: port number, assign zero to use default port
         :return: Password object
@@ -308,6 +311,7 @@ class PasswordExecutor:
         passwordRequest["appId"] = appId
         passwordRequest["requestReason"] = requestReason
         passwordRequest["query"] = query
+        passwordRequest["requiredAttribute"] = requiredAttribute
         # Get additional information
         additionalInfo = {}
         additionalInfo["osUser"] = getpass.getuser()
@@ -359,6 +363,7 @@ class PasswordExecutor:
             pwdObj = {}
             pwdObj["objectName"] = account["objectName"]
             pwdObj["objectContent"] = account["objectContent"]
+            pwdObj["extras"] = account["extras"];
             if PasswordExecutor.__enableCache:
                 PasswordExecutor.__lock.acquire()
                 PasswordExecutor.__passwordCache[appId] = (account["objectContent"], time.time())
