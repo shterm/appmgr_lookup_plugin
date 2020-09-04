@@ -18,10 +18,14 @@ class LookupModule(LookupBase):
         request_reason = query_params.get("reason", None)
         request_requiredAttribute = query_params.get("requiredAttribute", None)
         connect_port = query_params.get("connectPort", 0)
+        connect_host = query_params.get("host", HOST)
+        ca_file = query_params.get("cafile", None)
+        cert_file = query_params.get("certfile", None)
+        key_file = query_params.get("keyfile", None)
         credentialFile = None
         if rtninfo:
             credentialFile = rtninfo.get('creFile', None)
-        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, query, request_requiredAttribute, credentialFile, connect_port)
+        account_info = PasswordExecutor.queryPassword(account_name, resouce_name, appid, request_reason, query, request_requiredAttribute, credentialFile, connect_port, connect_host, ca_file, cert_file, key_file)
         really_account = account_info['objectName']
         really_password = account_info['objectContent']
         really_extras = account_info['extras']
@@ -64,7 +68,7 @@ class LookupModule(LookupBase):
 # pwdlib executor
 __all__ = ['PasswordExecutor', 'PwdlibException']
 import json, os, getpass, sys
-import platform, time, socket, struct
+import platform, time, socket, struct, ssl, hashlib
 from threading import Lock
 
 # host ip
@@ -73,6 +77,8 @@ HOST = "127.0.0.1"
 SDK_CURRENT_VERSION = "v2"
 # port
 DEFAULT_CONNECT_PORT = 29463
+# default tls port
+DEFAULT_CONNECT_TLS_PORT = 29443
 # password request
 USER_PASSWD_REQUEST = 0x19
 # password request response
@@ -93,6 +99,14 @@ USERNAME = "username"
 CONNECT_HOST = "connectHost"
 # connectPort key
 CONNECT_PORT = "connectPort"
+# default ca file
+DEFAULT_CA_FILE_PATH = "server.crt"
+# default client certifcation file
+DEFAULT_CLIENT_CERT_FILE_PATH = "client.crt"
+# default client key file
+DEFAULT_CLIENT_KEY_FILE_PATH = "client.key"
+# buffer when reading a file 
+READ_FILE_BUFFER = 8096
 
 systemType = platform.system()
 
@@ -118,6 +132,8 @@ class PwdlibException(Exception):
     PWDSDK_ERROR_INVALID_RETURNS = PWDSDK_ERRORCODEOFFSET + 11
     PWDSDK_ERROR_EXTENSION = PWDSDK_ERRORCODEOFFSET + 12
     PWDSDK_ERROR_CREDENTIALFILE = PWDSDK_ERRORCODEOFFSET + 13
+    PWDSDK_ERROR_TLS_CONNECT = PWDSDK_ERRORCODEOFFSET + 23
+    PWDSDK_ERROR_TLS_PYTHON_SUPPORT = PWDSDK_ERRORCODEOFFSET + 24
 
     def __init__(self, code, args):
         """
@@ -144,11 +160,73 @@ class ServerMessageManager:
         self.__socket = None
         self.__port = DEFAULT_CONNECT_PORT
         self.__corelationId = 1
+        self.__certFileHash = None
+        self.__keyFileHash = None
+        self.__sslContext = None
+        self.__sslSocket = None
+        self.__sock = None
+        
 
     def __del__(self):
         if self.__socket:
             self.__socket.close()
+        if self.__sslSocket:
+            self.__sslSocket.close()
 
+    # reconnect ssl socket
+    def __initSslSocket(self, caFile, certFile, keyFile, host, port):
+        """
+        Initialize ssl for socket
+        """
+        if self.__sslSocket:
+            self.__sslSocket.close()
+            self.__sslContext = None
+        
+        if caFile is None:
+            caFile = DEFAULT_CA_FILE_PATH
+        if certFile is None:
+            certFile = DEFAULT_CLIENT_CERT_FILE_PATH
+        if keyFile is None:
+            keyFile = DEFAULT_CLIENT_KEY_FILE_PATH
+        
+        try:
+            self.__sslContext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+            self.__sslContext.load_cert_chain(certfile=certFile, keyfile=keyFile)
+            self.__sslContext.load_verify_locations(caFile)
+            self.__sslContext.verify_mode = ssl.CERT_REQUIRED
+            self.__certFileHash = self.calcFileMd5(certFile)
+            self.__keyFileHash = self.calcFileMd5(keyFile)
+        except Exception as e:
+            return False
+
+        if not self.__sock:
+            try:
+                self.__sock = socket.socket()
+            except socket.error:
+                return False
+            
+        try:
+            self.__sslSocket = self.__sslContext.wrap_socket(self.__sock, server_side=False)
+            if host is None:
+                host = HOST
+            self.__sslSocket.connect((host, port))
+        except Exception:
+            return False
+          
+        return True  
+    
+    # Unified interface for initial socket   
+    def __initSock(self, port, host=HOST, caFile=None, certFile=None, keyFile=None):
+        if host == HOST:
+            if port == 0:
+                port = DEFAULT_CONNECT_PORT
+            return self.__initSocket(port)
+        else:
+            if port == 0:
+                port = DEFAULT_CONNECT_TLS_PORT
+            return self.__initSslSocket(caFile, certFile, keyFile, host, port)
+                
+    
     # reconnect socket
     def __initSocket(self, port):
         """
@@ -179,10 +257,34 @@ class ServerMessageManager:
             self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, struct.pack("ll", 30, 0))
 
         return True
+    
+    def calcFileMd5(self, filename):
+        if not os.path.isfile(filename):
+            return
+        fileHash = hashlib.md5()
+        file = open(filename, "rb")
+        while True:
+            block = file.read(READ_FILE_BUFFER)
+            if not block:
+                break
+            fileHash.update(block)
+        file.close()
+        return fileHash.hexdigest()
+    
+    # judge file is change or not by calculate file's MD5 hash code
+    def isFileChange(self, filename, tag):
+        result = False
+        hashCode = self.calcFileMd5(filename)
+        if tag == "cert":
+            return self.__certFileHash == hashCode
+        if tag == "key":
+            return self.__keyFileHash == hashCode
 
+        return result
+        
     # receive all data
     # python2 not support socket.MSG_WAITALL
-    def recvLen(self, bufSize):
+    def recvLen(self, bufSize, useTls=False):
         """
         Receive complete data
         :param bufSize: The size of data
@@ -191,16 +293,19 @@ class ServerMessageManager:
         recvSize = 0
         recvBytes = b""
         while recvSize < bufSize:
-            ret = self.__socket.recv(bufSize - recvSize)
+            if useTls:
+                ret = self.__sslSocket.recv(bufSize - recvSize)
+            else:
+                ret = self.__socket.recv(bufSize - recvSize)
             # Linux
             if ret == '':
                 raise socket.error("disconnect")
             recvBytes += ret
             recvSize += len(ret)
         return recvBytes
-
+    
     # send data and receive
-    def sendDataSync(self, port, code, message, haveResponse=False):
+    def sendDataSync(self, port, code, message, haveResponse=False, host=HOST, caFile=None, certFile=None, keyFile=None):
         """
         Synchronous messaging
         :param port: Port number
@@ -209,49 +314,88 @@ class ServerMessageManager:
         :param haveResponse: Whether to return a message
         :return: None or the returned message
         """
+        useTls = False
+        if host != HOST:
+            useTls = True
         ret = ""
         self.__lock.acquire()
-        if self.__socket is None or self.__port != port:
-            if not self.__initSocket(port):
-                self.__lock.release()
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
-                                      (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT), ))
-            else:
-                self.__port = port
+        if useTls:
+            if self.__sslContext is None or self.__sslSocket is None or not self.isFileChange(certFile, "cert") or not self.isFileChange(keyFile, "key"):
+                if not self.__initSock(port, host, caFile, certFile, keyFile):
+                    self.__lock.release()
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_SSL_CONNECT, 
+                                          (fillIdAppE("Connect ssl fail", PwdlibException.PWDSDK_ERROR_SSL_CONNECT), ))
+                else:
+                    self.__port = port
+        else:
+            if self.__socket is None or self.__port != port:
+                if not self.__initSock(port):
+                    self.__lock.release()
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
+                                        (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT), ))
+                else:
+                    self.__port = port
 
         msg = struct.pack(">HHI", code, self.__corelationId, len(message))
         self.__corelationId = (self.__corelationId + 1) % 0xffff
         if self.__corelationId == 0:
             self.__corelationId = 1
 
-        try:
-            self.__socket.sendall(msg + str.encode(message))
-        except socket.error:
-            # reconnect
-            if not self.__initSocket(port):
-                self.__lock.release()
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
-                                      (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT),))
-            else:
-                self.__lock.release()
-                raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
-                                      (fillIdAppE("Reconnect", PwdlibException.PWDSDK_ERROR_RECONNECT),))
-
-        if haveResponse:
+        if useTls:
             try:
-                msg = self.recvLen(8)
-                _, _, length = struct.unpack(">HHI", msg)
-                ret = self.recvLen(length)
+                self.__sslSocket.send(msg + str.encode(message))
             except socket.error:
                 # reconnect
-                if not self.__initSocket(port):
+                if not self.__initSock(port, host, caFile, certFile, keyFile):
                     self.__lock.release()
-                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
-                                          (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT),))
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_SSL_CONNECT,
+                                        (fillIdAppE("Connection failed", PwdlibException.PWDSDK_ERROR_SSL_CONNECT),))
                 else:
                     self.__lock.release()
                     raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
-                                          (fillIdAppE("Reconnect", PwdlibException.PWDSDK_ERROR_RECONNECT),))
+                                        (fillIdAppE("Error or timeout, reconnect",
+                                                    PwdlibException.PWDSDK_ERROR_RECONNECT),))        
+        else:
+            try:
+                self.__socket.sendall(msg + str.encode(message))
+            except socket.error:
+                # reconnect
+                if not self.__initSock(port):
+                    self.__lock.release()
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
+                                        (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT),))
+                else:
+                    self.__lock.release()
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
+                                        (fillIdAppE("Reconnect", PwdlibException.PWDSDK_ERROR_RECONNECT),))
+
+        if haveResponse:
+            try:
+                msg = self.recvLen(8, useTls)
+                _, _, length = struct.unpack(">HHI", msg)
+                ret = self.recvLen(length, useTls)
+            except socket.error:
+                if useTls:
+                    # reconnect
+                    if not self.__initSock(port, host, caFile, certFile, keyFile):
+                        self.__lock.release()
+                        raise PwdlibException(PwdlibException.PWDSDK_ERROR_SSL_CONNECT,
+                                                (fillIdAppE("Connection failed", PwdlibException.PWDSDK_ERROR_SSL_CONNECT),))
+                    else:
+                        self.__lock.release()
+                        raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
+                                                (fillIdAppE("Error or timeout, reconnect",
+                                                            PwdlibException.PWDSDK_ERROR_RECONNECT),))
+                else:
+                    # reconnect
+                    if not self.__initSock(port):
+                        self.__lock.release()
+                        raise PwdlibException(PwdlibException.PWDSDK_ERROR_CONNECT,
+                                            (fillIdAppE("Connect fail", PwdlibException.PWDSDK_ERROR_CONNECT),))
+                    else:
+                        self.__lock.release()
+                        raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
+                                            (fillIdAppE("Reconnect", PwdlibException.PWDSDK_ERROR_RECONNECT),))
 
         self.__lock.release()
         return ret
@@ -267,7 +411,7 @@ class PasswordExecutor:
         pass
 
     @staticmethod
-    def queryPassword(objectName, resourceName, appId, requestReason, query, requiredAttribute, credentialFile, port):
+    def queryPassword(objectName, resourceName, appId, requestReason, query, requiredAttribute, credentialFile, port, host=HOST, caFile=None, certFile=None, keyFile=None):
         """
         Query password
         :param objectName: Object name
@@ -284,8 +428,17 @@ class PasswordExecutor:
                 isinstance(port, int) and 0 <= port <= 65535):
             raise PwdlibException(PwdlibException.PWDSDK_ERROR_PARAMETER,
                                   (fillIdAppE("Invalid Parameter", PwdlibException.PWDSDK_ERROR_PARAMETER),))
+        useTls = False
+        if host != HOST:
+             useTls = True
+        if useTls and sys.version_info < (2, 7, 9):
+            raise PwdlibException(PwdlibException.PWDSDK_ERROR_TLS_PYTHON_SUPPORT, 
+                                  (fillIdAppE("Tls support requires Python2.7.9+", PwdlibException.PWDSDK_ERROR_TLS_PYTHON_SUPPORT), ))
         if port == 0:
-            port = DEFAULT_CONNECT_PORT
+            if useTls:
+                port = DEFAULT_CONNECT_TLS_PORT
+            else:
+                port = DEFAULT_CONNECT_PORT
 
         # Query local cache(default close)
         if PasswordExecutor.__enableCache:
@@ -337,7 +490,7 @@ class PasswordExecutor:
         requestInfo["passwordRequest"] = passwordRequest
         requestInfo["sdk"] = sdkInfo
         response = PasswordExecutor.__SererMessageManager.sendDataSync(port, USER_PASSWD_REQUEST,
-                                                                       json.dumps(requestInfo), True)
+                                                                       json.dumps(requestInfo), True, host, caFile, certFile, keyFile)
         if response:
             account = json.loads(response.decode())
             # Judging additional information
