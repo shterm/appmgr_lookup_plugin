@@ -323,8 +323,8 @@ class ServerMessageManager:
             if self.__sslContext is None or self.__sslSocket is None or not self.isFileChange(certFile, "cert") or not self.isFileChange(keyFile, "key"):
                 if not self.__initSock(port, host, caFile, certFile, keyFile):
                     self.__lock.release()
-                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_SSL_CONNECT, 
-                                          (fillIdAppE("Connect ssl fail", PwdlibException.PWDSDK_ERROR_SSL_CONNECT), ))
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_TLS_CONNECT, 
+                                          (fillIdAppE("Connect ssl fail", PwdlibException.PWDSDK_ERROR_TLS_CONNECT), ))
                 else:
                     self.__port = port
         else:
@@ -348,8 +348,8 @@ class ServerMessageManager:
                 # reconnect
                 if not self.__initSock(port, host, caFile, certFile, keyFile):
                     self.__lock.release()
-                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_SSL_CONNECT,
-                                        (fillIdAppE("Connection failed", PwdlibException.PWDSDK_ERROR_SSL_CONNECT),))
+                    raise PwdlibException(PwdlibException.PWDSDK_ERROR_TLS_CONNECT,
+                                        (fillIdAppE("Connection failed", PwdlibException.PWDSDK_ERROR_TLS_CONNECT),))
                 else:
                     self.__lock.release()
                     raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
@@ -379,8 +379,8 @@ class ServerMessageManager:
                     # reconnect
                     if not self.__initSock(port, host, caFile, certFile, keyFile):
                         self.__lock.release()
-                        raise PwdlibException(PwdlibException.PWDSDK_ERROR_SSL_CONNECT,
-                                                (fillIdAppE("Connection failed", PwdlibException.PWDSDK_ERROR_SSL_CONNECT),))
+                        raise PwdlibException(PwdlibException.PWDSDK_ERROR_TLS_CONNECT,
+                                                (fillIdAppE("Connection failed", PwdlibException.PWDSDK_ERROR_TLS_CONNECT),))
                     else:
                         self.__lock.release()
                         raise PwdlibException(PwdlibException.PWDSDK_ERROR_RECONNECT,
