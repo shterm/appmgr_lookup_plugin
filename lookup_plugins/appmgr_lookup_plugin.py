@@ -430,7 +430,13 @@ class PasswordExecutor:
                                   (fillIdAppE("Invalid Parameter", PwdlibException.PWDSDK_ERROR_PARAMETER),))
         useTls = False
         if host != HOST:
-             useTls = True
+            useTls = True
+            if caFile is None:
+                caFile = DEFAULT_CA_FILE_PATH
+            if certFile is None:
+                certFile = DEFAULT_CLIENT_CERT_FILE_PATH
+            if keyFile is None:
+                keyFile = DEFAULT_CLIENT_KEY_FILE_PATH
         if useTls and sys.version_info < (2, 7, 9):
             raise PwdlibException(PwdlibException.PWDSDK_ERROR_TLS_PYTHON_SUPPORT, 
                                   (fillIdAppE("Tls support requires Python2.7.9+", PwdlibException.PWDSDK_ERROR_TLS_PYTHON_SUPPORT), ))
