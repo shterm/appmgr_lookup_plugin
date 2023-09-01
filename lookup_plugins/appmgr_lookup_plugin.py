@@ -71,6 +71,7 @@ import json, os, getpass, sys
 import platform, time, socket, struct, ssl, hashlib
 from threading import Lock
 
+CERT_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__))) + "/cert/"
 # host ip
 HOST = "127.0.0.1"
 # sdk current version
@@ -100,11 +101,11 @@ CONNECT_HOST = "connectHost"
 # connectPort key
 CONNECT_PORT = "connectPort"
 # default ca file
-DEFAULT_CA_FILE_PATH = "server.crt"
+DEFAULT_CA_FILE_PATH = CERT_PATH + "server.crt"
 # default client certifcation file
-DEFAULT_CLIENT_CERT_FILE_PATH = "client.crt"
+DEFAULT_CLIENT_CERT_FILE_PATH = CERT_PATH + "client.crt"
 # default client key file
-DEFAULT_CLIENT_KEY_FILE_PATH = "client.key"
+DEFAULT_CLIENT_KEY_FILE_PATH = CERT_PATH + "client.key"
 # buffer when reading a file 
 READ_FILE_BUFFER = 8096
 
